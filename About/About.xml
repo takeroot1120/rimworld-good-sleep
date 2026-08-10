@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+	<name>Good Sleep</name>
+	<author>takeroot1120</author>
+	<packageId>takeroot1120.goodsleep</packageId>
+	<supportedVersions>
+		<li>1.6</li>
+	</supportedVersions>
+	<description>スケジュールで睡眠に充てられた時間になったら、疲れていなくても必ず眠るようにします。疲労が溜まらず自分からは絶対に眠らない種族MODのポーンにも有効です。ワークタブで優先度1に設定した作業が今すぐ着手可能な場合はそちらを優先し、それが無いときだけ強制的に眠らせます。
+
+Makes pawns actually go to bed at their scheduled sleep time, even if they're not tired - including modded races that never accumulate fatigue and would otherwise never sleep on their own. If a pawn has priority-1 work available, that work still comes first; forced sleep only kicks in once nothing more urgent needs doing.</description>
+</ModMetaData>

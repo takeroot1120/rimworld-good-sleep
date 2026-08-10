@@ -1,0 +1,7 @@
+bin/
+obj/
+*.user
+.vs/
+1.6/Assemblies/*.dll
+1.6/Assemblies/*.pdb
+!1.6/Assemblies/.gitkeep
