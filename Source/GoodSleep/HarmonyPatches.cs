@@ -72,4 +72,43 @@ namespace GoodSleep
 			__result.forceSleep = true;
 		}
 	}
+
+	// forceSleep を立てた睡眠ジョブは、Toils_LayDown の tick 処理内で
+	// 「!curJob.forceSleep のときしか RestUtility.ShouldWakeUp による起床(asleep=false)を
+	// 通さない」という条件になっているため、forceSleep=true のジョブは寝ている間ずっと
+	// asleep フラグが立ちっぱなしのまま二度と false に戻らない。
+	// PawnUtility.Awake(pawn) はこの asleep フラグを見て「起きているか」を判定しており、
+	// JobGiver_Work / JobGiver_GetJoy など多くの JobGiver がその Awake() を前提条件にして
+	// いるため、asleep が立ちっぱなしだと「起きているとみなされない」ポーンには仕事も娯楽も
+	// 一切提案されなくなり、CheckForJobOverride を呼んでも常に空振りしてしまう
+	// (実機ログで curJob が変化しないことを確認済み)。
+	// スケジュールが睡眠でなくなったら、このMODが発行した強制睡眠ジョブに限って
+	// asleep を明示的に false へ戻してから CheckForJobOverride を呼び直し、
+	// 他の JobGiver が正しく仕事・娯楽を提案できるようにする。
+	[HarmonyPatch(typeof(JobDriver), "DriverTick")]
+	public static class Patch_JobDriver_DriverTick_WakeUpWhenScheduleLeavesSleep
+	{
+		private const int CheckIntervalTicks = 60;
+
+		private static void Postfix(JobDriver __instance)
+		{
+			Job job = __instance.job;
+			if (job == null || job.def != JobDefOf.LayDown || !job.forceSleep)
+			{
+				return;
+			}
+			Pawn pawn = __instance.pawn;
+			if (pawn == null || !pawn.IsHashIntervalTick(CheckIntervalTicks))
+			{
+				return;
+			}
+			if (GoodSleepUtility.IsScheduledSleepNow(pawn))
+			{
+				return; // まだ強制睡眠の対象時間内
+			}
+
+			__instance.asleep = false;
+			pawn.jobs.CheckForJobOverride();
+		}
+	}
 }
