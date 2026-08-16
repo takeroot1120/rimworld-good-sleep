@@ -7,8 +7,20 @@ namespace GoodSleep
 {
 	internal static class GoodSleepUtility
 	{
+		// 強制睡眠が(他の欲求を満たすために)中断された直後に即座にまた強制すると、
+		// Intimacy - Homely のような就寝前後で服を着脱するMODと組み合わせたときに
+		// 着替え→即中断→着替え…を繰り返してしまう。中断後はこの猶予期間だけ
+		// 強制睡眠を控え、中断の原因になった行動が一段落する時間を与える。
+		public const int ForceSleepCooldownTicks = 1500;
+
 		// GetPriority 側で使う軽量チェック。ワークギバーの走査を含まないため、
 		// 思考ツリーの優先度計算(頻繁に呼ばれる)で使っても重くならない。
+		// クールダウン(ForceSleepCooldownTicks)はここには含めない。これは「まだ
+		// スケジュール上は寝ようとしている時間帯かどうか」を表す純粋な判定であり、
+		// Intimacy - Homely 互換パッチ(HomelyCompat)側でも「その間は着替えジョブを
+		// 抑制する」ために使っているため、ここにクールダウンを混ぜると
+		// クールダウン中だけ着替えジョブの抑制が解除されてしまい、寝ている最中に
+		// 割り込まれる新たな不具合になる(実機で確認済み)。
 		public static bool IsScheduledSleepNow(Pawn pawn)
 		{
 			if (pawn?.timetable == null || pawn.timetable.CurrentAssignment != TimeAssignmentDefOf.Sleep)
@@ -29,11 +41,36 @@ namespace GoodSleep
 			return true;
 		}
 
+		// GetPriority / TryGiveJob 側で「実際に優先度8を主張してよいか」を判定する。
+		// IsScheduledSleepNow に加えて、中断後のクールダウン(canSleepTick)も見る。
+		// ただしクールダウンは「優先度1の作業がまだ進行中/保留中」の間だけ有効にする。
+		// 空腹・衛生などの正当な欲求やHomelyの着替えジョブ自体は、優先度8よりそもそも
+		// 高い優先度で競り勝つか、他の仕組み(HomelyCompat の抑制、LayDown 中は
+		// 新規ジョブを作らず forceSleep だけ立てる仕組み)で個別に保護されているため、
+		// クールダウンで一律に足止めする必要は無い。優先度1ではない通常の作業に
+		// 戻ろうとしている場合にまでクールダウンで足止めすると、優先度1ではない
+		// はずの仕事を延々と続けてしまう不具合になる(実機で確認済み)。
+		public static bool ShouldForcePriorityNow(Pawn pawn)
+		{
+			if (!IsScheduledSleepNow(pawn))
+			{
+				return false;
+			}
+			if (pawn.mindState != null && Find.TickManager.TicksGame < pawn.mindState.canSleepTick)
+			{
+				if (HasPendingPriority1Work(pawn))
+				{
+					return false; // 優先度1の作業が絡む中断のクールダウン中
+				}
+			}
+			return true;
+		}
+
 		// TryGiveJob 側で使う最終チェック。実際にジョブを発行してよいかどうかは
 		// 優先度1の作業が今すぐ着手可能かどうかまで見て決める(こちらはやや重い)。
 		public static bool ShouldForceSleepNow(Pawn pawn)
 		{
-			return IsScheduledSleepNow(pawn) && !HasPendingPriority1Work(pawn);
+			return ShouldForcePriorityNow(pawn) && !HasPendingPriority1Work(pawn);
 		}
 
 		// 「優先度1の作業がなければ」という要件のため、ワークタブで優先度1に設定されている
