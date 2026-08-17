@@ -58,9 +58,9 @@ namespace GoodSleep
 			}
 			if (pawn.mindState != null && Find.TickManager.TicksGame < pawn.mindState.canSleepTick)
 			{
-				if (HasPendingPriority1Work(pawn))
+				if (HasUninterruptibleWork(pawn))
 				{
-					return false; // 優先度1の作業が絡む中断のクールダウン中
+					return false; // 優先度1の作業、または授乳中の中断クールダウン中
 				}
 			}
 			return true;
@@ -70,7 +70,26 @@ namespace GoodSleep
 		// 優先度1の作業が今すぐ着手可能かどうかまで見て決める(こちらはやや重い)。
 		public static bool ShouldForceSleepNow(Pawn pawn)
 		{
-			return ShouldForcePriorityNow(pawn) && !HasPendingPriority1Work(pawn);
+			return ShouldForcePriorityNow(pawn) && !HasUninterruptibleWork(pawn);
+		}
+
+		// 優先度1の作業に加えて、母親が赤ん坊に授乳している/授乳のために赤ん坊を
+		// 運んでいる最中も中断させない。BreastfeedBaby の WorkGiverDef は
+		// workType=Childcare の通常作業として定義されており(emergency フラグなし)、
+		// Childcare の優先度をたまたま1に設定していない限り「優先度1ではない作業」
+		// として扱われてしまう。しかし赤ん坊の空腹は待ったなしの欲求であり、
+		// 優先度1でない通常の仕事に戻ろうとしたら強制睡眠で中断する、という
+		// このMODの挙動をそのまま適用すると、授乳を始めた直後にキャンセルして
+		// 寝てしまう→また授乳を始める…を繰り返す不具合になる(実機で確認済み)。
+		private static bool HasUninterruptibleWork(Pawn pawn)
+		{
+			JobDef curJobDef = pawn.CurJob?.def;
+			if (curJobDef == JobDefOf.Breastfeed || curJobDef == JobDefOf.BottleFeedBaby ||
+				curJobDef == JobDefOf.BreastfeedCarryToMom)
+			{
+				return true;
+			}
+			return HasPendingPriority1Work(pawn);
 		}
 
 		// 「優先度1の作業がなければ」という要件のため、ワークタブで優先度1に設定されている
